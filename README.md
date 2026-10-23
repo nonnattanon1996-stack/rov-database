@@ -7,6 +7,7 @@
 - หรือรันเซิร์ฟเวอร์ในเครื่อง: `python3 -m http.server 8000` แล้วเปิด http://localhost:8000
 
 ## เอาขึ้นออนไลน์
+- **ตอนนี้ใช้งานอยู่บน Vercel**: โปรเจกต์ `rov-database` เชื่อมกับ GitHub แล้ว push ขึ้น `main` เมื่อไหร่ก็ deploy production อัตโนมัติ
 - **GitHub Pages**: อัปโหลดทั้งโฟลเดอร์ขึ้น repo แล้วเปิด Settings → Pages → Deploy from branch
 - **Netlify / Cloudflare Pages / Vercel**: ลากโฟลเดอร์นี้ไปวาง (Build command: ไม่ต้องใส่, Publish directory: `.`)
 - โดเมนของตัวเอง: อัปโหลดทั้งโฟลเดอร์ไปที่ public_html ของโฮสต์
