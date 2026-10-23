@@ -1,0 +1,15 @@
+{
+ "name": "คลังข้อมูล RoV",
+ "short_name": "RoV",
+ "start_url": "./",
+ "display": "standalone",
+ "background_color": "#0f151b",
+ "theme_color": "#0f151b",
+ "icons": [
+  {
+   "src": "favicon.svg",
+   "sizes": "any",
+   "type": "image/svg+xml"
+  }
+ ]
+}

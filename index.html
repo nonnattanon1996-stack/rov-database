@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>คลังข้อมูล RoV</title>
+<meta name="description" content="คลังข้อมูล RoV (Arena of Valor ไทย): สถานะและสกิลฮีโร่ทุกเลเวล สายการเล่น ทางแพ้ชนะ ไอเทม และเครื่องจำลองดาเมจ แพตช์ Beta 55">
+<meta name="theme-color" content="#0f151b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f2f4f6" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website"><meta property="og:title" content="คลังข้อมูล RoV"><meta property="og:description" content="คลังข้อมูล RoV (Arena of Valor ไทย): สถานะและสกิลฮีโร่ทุกเลเวล สายการเล่น ทางแพ้ชนะ ไอเทม และเครื่องจำลองดาเมจ แพตช์ Beta 55">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<section id="intro" aria-label="แนะนำ"><div class="stage"><button type="button" class="skip">ข้ามไปที่ข้อมูล</button><div class="ring"></div>
+    <div class="ttl"><h1>คลังข้อมูล RoV</h1><p class="sub">สถานะ สกิล สายการเล่น ทางแพ้ชนะ ไอเทม และจำลองดาเมจ ของฮีโร่ทั้งหมดในเกม</p><div class="nums"><span><b>130</b>ฮีโร่</span><span><b>114</b>ไอเทม</span><span id="patchLine"></span></div></div>
+    <div class="cta"><h2>เลือกฮีโร่ที่อยากดู</h2><p>กดการ์ดบนส่วนโค้งเพื่อเปิดข้อมูลของฮีโร่ตัวนั้น หรือเข้าไปดูทั้งหมด</p><button type="button" class="go">เข้าสู่คลังข้อมูล</button></div>
+    <div class="hint">เลื่อนลง<i></i></div></div></section>
+<div class="wrap">
+  <div id="app"></div>
+  <nav class="tabs" aria-label="มุมมอง"><button type="button" data-view="lib" aria-pressed="true">ฮีโร่</button><button type="button" data-view="draft" aria-pressed="false">ดราฟต์</button><button type="button" data-view="items" aria-pressed="false">ไอเทม</button><button type="button" data-view="sim" aria-pressed="false">จำลองดาเมจ</button><button type="button" data-view="about" aria-pressed="false">ที่มา</button></nav>
+  <div id="viewLib">
+
+  <div class="bar">
+    <label class="search" for="q"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="q" type="search" placeholder="ค้นหาฮีโร่" autocomplete="off"></label>
+    <div class="chips" id="roleChips"></div>
+  </div>
+  <div class="row" style="margin-bottom:10px">
+    <div class="styles" id="styleBtns"></div>
+    <div class="mode" id="modeBox" hidden><button type="button" data-mode="all" aria-pressed="true">ต้องได้ทุกสาย</button><button type="button" data-mode="any" aria-pressed="false">สายใดก็ได้</button></div>
+  </div>
+  <div class="status">
+    <div><strong id="count">0</strong> <span id="countLabel">ฮีโร่</span></div>
+    <div class="row" style="gap:12px">
+      <details class="more"><summary>ตัวกรองเพิ่มเติม</summary><div class="morebox">
+        <select id="lane" aria-label="เลน"></select>
+        <select id="phase" aria-label="ช่วงเกมที่เก่ง"><option value="">ทุกช่วงเกม</option><option value="E">เก่งต้นเกม</option><option value="M">เก่งกลางเกม</option><option value="L">เก่งท้ายเกม</option></select>
+        <select id="sort" aria-label="เรียงตาม"><option value="name">เรียงตามชื่อ</option><option value="tier">เรียงตาม Tier</option><option value="wr">เรียงตามอัตราชนะ</option><option value="styles">เล่นได้หลายสายก่อน</option></select>
+        <label class="chk" for="strict"><input type="checkbox" id="strict">เฉพาะจุดเด่น</label></div></details>
+      <button class="reset" id="reset" type="button">ล้างตัวกรอง</button>
+    </div>
+  </div>
+  <section id="guide" aria-live="polite"></section>
+  <div class="hgrid"><div class="hlist" id="grid"></div><div id="hdetail"></div></div>
+  </div>
+<div id="viewDraft" hidden>
+  <section class="dset" aria-label="ตั้งค่าซีรีส์">
+    <label for="dBo">รูปแบบซีรีส์
+      <select id="dBo"><option value="1">Bo1</option><option value="3">Bo3</option><option value="5" selected>Bo5</option><option value="7">Bo7</option></select></label>
+    <label for="dSide">ทีมเราอยู่ฝั่ง
+      <select id="dSide"><option value="0">น้ำเงิน (แบน/เลือกก่อน)</option><option value="1">แดง</option></select></label>
+    <label class="chk" for="dGbp"><input type="checkbox" id="dGbp" checked>Global Ban Pick</label>
+    <span class="dgame" id="dGame">เกม 1</span>
+    <div class="row" style="gap:8px;margin-left:auto">
+      <button type="button" class="btn" id="dUndo">ย้อน 1 ขั้น</button>
+      <button type="button" class="btn gold" id="dNext" disabled>เกมถัดไป</button>
+      <button type="button" class="btn" id="dReset">เริ่มซีรีส์ใหม่</button>
+    </div>
+  </section>
+  <div class="dturn" id="dTurn" aria-live="polite"></div>
+  <div class="dboard" id="dBoard"></div>
+  <div class="dcols">
+    <section class="dpanel" id="dRec"></section>
+    <section class="dpanel" id="dCtr"></section>
+  </div>
+  <section class="pool">
+    <div class="row">
+      <label class="search" for="dq"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="dq" type="search" placeholder="ค้นหาแล้วแตะเพื่อเลือกหรือแบน" autocomplete="off"></label>
+      <select id="dLane" aria-label="กรองเลน"><option value="">ทุกเลน</option><option value="0">เลน Dark Slayer</option><option value="1">ป่า</option><option value="2">เลนกลาง</option><option value="3">เลนมังกร</option><option value="4">โรมมิ่ง</option></select>
+    </div>
+    <div class="pgrid" id="dPool"></div>
+    <div class="usedbox" id="dUsed"></div>
+  </section>
+  <p class="note" style="margin-top:12px">ลำดับแบน/เลือกแบบทัวร์นาเมนต์ (แบน 2-2 · เลือก 1-2-2-1 · แบน 2-2 · เลือก 1-2-1) และ Global Ban Pick แบบ RPL: ในซีรีส์เดียวกัน ทีมหนึ่งเลือกฮีโร่ที่ตัวเองเคยใช้แล้วไม่ได้ ยกเว้นเกมที่ 7 ของ Bo7 ตัวแก้ทางรวมจากหลายแหล่ง ส่วนความเข้าคู่ เลน และความนิยมคำนวณจากผลแข่งระดับโปร 4,208 เกม (2024–2026) เป็นแนวโน้ม ไม่ใช่การันตีผล</p>
+  <details class="note" id="ctrSrc" style="margin-top:8px"><summary>แหล่งข้อมูลแพ้ทาง / ชนะทาง</summary></details>
+</div>
+
+<div id="viewItems" hidden><rov-db view="items"></rov-db></div>
+<div id="viewSim" hidden><rov-db view="sim"></rov-db></div>
+<div id="viewAbout" hidden><rov-db view="about"></rov-db></div>
+  <footer>
+    <div>สายการเล่นและช่วงเกมนับคะแนนจากไกด์ที่เขียนโดยผู้เล่น ต.ค. 2023 – ต.ค. 2026 เท่านั้น: aov-builds (ไกด์รายตัว 2026), finhay, fptshop, hoanghamobile, cellphones, didongviet และอื่น ๆ (เวียดนาม), 1v9.gg, commonsensegamer, BlueStacks (สากล/ไทย) และคำแก้จากคุณ ฮีโร่จะได้ “จุดเด่น” ก็ต่อเมื่ออย่างน้อย 2 แหล่งระบุว่าเป็นวิธีเล่นหลัก ช่วงเกมดูจากจำนวนแหล่งที่บอกว่าแรงลบด้วยที่บอกว่าอ่อน ตารางในวิดีโอและการอ่านสกิลเองไม่ได้ใช้นับแล้ว</div>
+    <div>รูป สกิล และสถิติการแข่ง 2024–2026 จาก <a href="https://github.com/golfdesu/rov" target="_blank" rel="noopener">github.com/golfdesu/rov</a> · แตะที่ฮีโร่เพื่อดูแหล่งอ้างอิงของแต่ละสาย</div>
+  </footer>
+</div>
+<noscript><p style="padding:24px">เว็บนี้ต้องเปิด JavaScript เพื่อแสดงข้อมูล</p></noscript>
+<script src="data/rov-data.js"></script>
+<script src="data/db-data.js"></script>
+<script src="assets/db-css.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/intro.js"></script>
+</body>
+</html>
