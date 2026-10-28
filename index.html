@@ -21,12 +21,13 @@
     <div class="hint">เลื่อนลง<i></i></div></div></section>
 <div class="wrap">
   <div id="app"></div>
-  <nav class="tabs" aria-label="มุมมอง"><button type="button" data-view="lib" aria-pressed="true">ฮีโร่</button><button type="button" data-view="draft" aria-pressed="false">ดราฟต์</button><button type="button" data-view="items" aria-pressed="false">ไอเทม</button><button type="button" data-view="sim" aria-pressed="false">จำลองดาเมจ</button><button type="button" data-view="about" aria-pressed="false">ที่มา</button></nav>
+  <nav class="tabs" aria-label="มุมมอง"><button type="button" data-view="lib" aria-pressed="true">ฮีโร่</button><button type="button" data-view="draft" aria-pressed="false">ดราฟต์</button><button type="button" data-view="players" aria-pressed="false">ผู้เล่น</button><button type="button" data-view="items" aria-pressed="false">ไอเทม</button><button type="button" data-view="sim" aria-pressed="false">จำลองดาเมจ</button><button type="button" data-view="about" aria-pressed="false">ที่มา</button></nav>
   <div id="viewLib">
 
   <div class="bar">
     <label class="search" for="q"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="q" type="search" placeholder="ค้นหาฮีโร่" autocomplete="off"></label>
     <div class="chips" id="roleChips"></div>
+    <button type="button" class="rchip" id="favChip" aria-pressed="false">★ โปรด <span id="favN"></span></button>
   </div>
   <div class="row" style="margin-bottom:10px">
     <div class="styles" id="styleBtns"></div>
@@ -78,6 +79,7 @@
   <details class="note" id="ctrSrc" style="margin-top:8px"><summary>แหล่งข้อมูลแพ้ทาง / ชนะทาง</summary></details>
 </div>
 
+<div id="viewPlayers" hidden></div>
 <div id="viewItems" hidden><rov-db view="items"></rov-db></div>
 <div id="viewSim" hidden><rov-db view="sim"></rov-db></div>
 <div id="viewAbout" hidden><rov-db view="about"></rov-db></div>

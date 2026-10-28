@@ -25,7 +25,10 @@ const ROLE_TH={Warrior:'ไฟเตอร์',Tank:'แทงค์',Mage:'เ�
 const LANE_TH={DS_Lane:'เลน Dark Slayer',Dragon_Lane:'เลนมังกร',Mid:'เลนกลาง',Jungle:'ป่า',Roam:'โรมมิ่ง',Unknown:'ไม่ระบุ'};
 const TIER_RANK={'S+':0,S:1,A:2,B:3,C:4};
 
-const state={sel:new Set(),mode:'all',q:'',role:'',lane:'',sort:'name',strict:false,phase:''};
+const state={sel:new Set(),mode:'all',q:'',role:'',lane:'',sort:'name',strict:false,phase:'',fav:false};
+const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const FAV_KEY='rov.fav.v1';const favs=new Set(LS.get(FAV_KEY,[]).filter(n=>H.some(h=>h.id===n)));
+let plCur=null;
 const has=(h,k)=>h.styles[k]&&(!state.strict||h.styles[k].lv===2);
 const SRC={
 chart:['ตารางในวิดีโอที่คุณส่งมา','ไม่ทราบปี',''],
@@ -99,6 +102,7 @@ function filtered(){
   let list=H.filter(h=>{
     if(q && !h.name.toLowerCase().includes(q) && !h.th.toLowerCase().includes(q)) return false;
     if(state.role && h.role!==state.role && h.role2!==state.role) return false;
+    if(state.fav && !favs.has(h.id)) return false;
     if(state.lane && h.lane!==state.lane) return false;
     if(state.phase && !h.tm.peaks.includes(state.phase)) return false;
     if(state.sel.size){
@@ -125,7 +129,7 @@ function renderGuide(){
 }
 
 function card(h){
-  return `<button type="button" class="hbtn" data-h="${esc(h.name)}" aria-pressed="${h.name===curHero}" title="${esc(h.th)}"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span></button>`;
+  return `<button type="button" class="hbtn" data-h="${esc(h.name)}" aria-pressed="${h.name===curHero}" title="${esc(h.th)}"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span>${favs.has(h.id)?'<i class="fv" aria-hidden="true">★</i>':''}</button>`;
 }
 
 let curHero='',pane=0;
@@ -139,7 +143,7 @@ function render(){
   $('countLabel').textContent = names.length ? `ฮีโร่ที่เล่นสาย ${names.join(state.mode==='all'?' + ':' หรือ ')} ได้` : 'ฮีโร่ทั้งหมด';
   renderGuide();
   $('grid').innerHTML = list.length ? list.map(card).join('') :
-    `<div class="empty">ไม่มีฮีโร่ที่ตรงเงื่อนไข ลองเลือก “สายใดก็ได้” หรือล้างตัวกรอง</div>`;
+    `<div class="empty">${state.fav&&!favs.size?'ยังไม่มีฮีโร่โปรด เปิดฮีโร่ที่ชอบแล้วกดดาว ★ ข้างชื่อ':'ไม่มีฮีโร่ที่ตรงเงื่อนไข ลองเลือก “สายใดก็ได้” หรือล้างตัวกรอง'}</div>`;
 }
 
 // Detail sheet
@@ -153,7 +157,7 @@ const fit=ORDER.map(k=>{
   const chips=arr=>arr.length?`<div class="chips">${arr.map(n=>`<button type="button" class="chip" data-h="${esc(n)}">${esc(n)}</button>`).join('')}</div>`:'<p class="note">ข้อมูลการแข่งยังไม่พอ</p>';
   const PN=['สถานะและสกิล','สายการเล่น','แพ้/ชนะทาง','ที่มา'];
   $('hdetail').innerHTML=`<div class="panel">
-    <div class="hhead"><img src="${h.img}" alt="" width="64" height="64"><div><h2 id="dName">${esc(h.th)}</h2>
+    <div class="hhead"><img src="${h.img}" alt="" width="64" height="64"><div><div class="nmrow"><h2 id="dName">${esc(h.th)}</h2><button type="button" class="star" data-star="${h.id}" aria-pressed="${favs.has(h.id)}" aria-label="ฮีโร่โปรด" title="ฮีโร่โปรด">★</button></div>
       <div class="tags"><span class="tag">${role}</span><span class="tag">${h.range==='Ranged'?'ระยะไกล':'ระยะประชิด'}</span><span class="tag">${LANE_TH[h.lane]||h.lane}</span>${h.th!==h.name?`<span class="tag">${esc(h.name)}</span>`:''}</div>
       <div class="tags"><span class="tag t2">Tier ${esc(h.tier)}</span><span class="tag t2">ชนะ ${h.wr}%</span><span class="tag t2">เลือก ${h.pick}%</span><span class="tag t2">แบน ${h.ban}%</span></div></div></div>
     <div class="stabs" id="stabs" role="tablist">${PN.map((t,i)=>`<button type="button" data-p="${i}" aria-pressed="${i===pane}">${t}</button>`).join('')}</div>
@@ -415,11 +419,239 @@ $$('dBo').addEventListener('change',e=>{DS.bo=+e.target.value;renderDraft();});
 $$('dGbp').addEventListener('change',e=>{DS.gbp=e.target.checked;renderDraft();});
 $$('dSide').addEventListener('change',e=>{if(DS.steps.length){e.target.value=DS.our;return;}DS.our=+e.target.value;renderDraft();});
 $$('dq').addEventListener('input',renderDraft);$$('dLane').addEventListener('change',renderDraft);
-const VIEWS={lib:'viewLib',draft:'viewDraft',items:'viewItems',sim:'viewSim',about:'viewAbout'};
+// ===== ฮีโร่โปรด + ผู้เล่น (โปรไฟล์รายคน) — ฝังอยู่ในสโคปเดียวกับ app.js =====
+// ข้อมูลทั้งหมดเก็บในเบราว์เซอร์เครื่องนี้ (localStorage) ไม่มีเซิร์ฟเวอร์ ไม่มีบัญชี
+// การแชร์ = ลิงก์ที่เข้ารหัสชื่อ + รายชื่อฮีโร่ไว้ในตัวลิงก์ (#p=ชื่อ~id.id.id)
+const BYID=new Map(H.map((h,i)=>[h.id,i]));
+
+// ---------- ฮีโร่โปรด ----------
+function favSync(){
+  const chip=$('favChip'); if(!chip) return;
+  chip.setAttribute('aria-pressed',state.fav);
+  $('favN').textContent=favs.size?'('+favs.size+')':'';
+}
+function favToggle(id){
+  if(favs.has(id)) favs.delete(id); else favs.add(id);
+  LS.set(FAV_KEY,[...favs]); favSync();
+}
+$('favChip').addEventListener('click',()=>{state.fav=!state.fav;favSync();render();});
+$('reset').addEventListener('click',()=>{if(state.fav){state.fav=false;favSync();render();}});
+$('hdetail').addEventListener('click',e=>{
+  const b=e.target.closest('.star'); if(!b) return;
+  const id=+b.dataset.star; favToggle(id);
+  const on=favs.has(id); b.setAttribute('aria-pressed',on);
+  if(state.fav) render();
+  else { const h=H[BYID.get(id)]; const card=document.querySelector('#grid .hbtn[data-h="'+(window.CSS&&CSS.escape?CSS.escape(h.name):h.name)+'"]');
+    if(card){ const old=card.querySelector('.fv'); if(on&&!old) card.insertAdjacentHTML('beforeend','<i class="fv" aria-hidden="true">★</i>'); if(!on&&old) old.remove(); } }
+});
+favSync();
+
+// ---------- ผู้เล่น ----------
+const PL_KEY='rov.players.v1';
+let plList=LS.get(PL_KEY,[]).filter(p=>p&&typeof p.id==='string'&&Array.isArray(p.ids));
+plList.forEach(p=>{p.ids=p.ids.filter(n=>BYID.has(n));p.name=String(p.name||'').slice(0,40);});
+const plPersist=()=>LS.set(PL_KEY,plList);
+const plUid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const sameSet=(a,b)=>a.length===b.length&&a.every(x=>b.includes(x));
+const plOpts={multi:true,picker:false,q:'',copied:false,confirmDel:''};
+let plTimer=0;
+
+function plHash(p){return '#p='+encodeURIComponent((p.name||'').replace(/~/g,'-'))+'~'+p.ids.map(n=>n.toString(36)).join('.');}
+function plParse(hash){
+  const m=/^#p=([^~]*)~([0-9a-z.]*)$/.exec(hash); if(!m) return null;
+  let name=''; try{name=decodeURIComponent(m[1]);}catch(e){}
+  const ids=[...new Set(m[2].split('.').filter(Boolean).map(x=>parseInt(x,36)).filter(n=>BYID.has(n)))];
+  return {name:name.slice(0,40),ids};
+}
+function plRoute(){
+  const c=plParse(location.hash); if(!c) return false;
+  const same=plList.find(p=>p.name===c.name&&sameSet(p.ids,c.ids));
+  plCur={pid:same?same.id:null,name:c.name,ids:c.ids};
+  return true;
+}
+function plSync(){
+  if(!plCur) return;
+  if(plCur.pid){const p=plList.find(x=>x.id===plCur.pid); if(p){p.name=plCur.name;p.ids=plCur.ids.slice();plPersist();}}
+  try{history.replaceState(null,'',plHash(plCur));}catch(e){}
+  document.title=(plCur.name||'ผู้เล่น')+' · คลังข้อมูล RoV';
+  const l=$('plLink'); if(l) l.value=location.href;
+}
+function plShow(){
+  if(!plCur&&/^#p=/.test(location.hash)) plRoute();
+  if(plCur) plRenderPage(); else plRenderHome();
+}
+
+// ความสัมพันธ์ชนะ/แพ้ทางของทั้งกลุ่ม ใช้ข้อมูลเดียวกับแท็บ "แพ้/ชนะทาง" ของแต่ละฮีโร่
+// mode 'lose': ตัวที่แก้ทางฮีโร่ในกลุ่ม · mode 'win': ตัวที่ฮีโร่ในกลุ่มแก้ทางได้
+function plPairs(hi,mode){
+  const src=(mode==='lose'?CBY:CVS).get(hi)||[];
+  return src.filter(o=>(!plOpts.multi||o.src.length>=2)&&adv(o.c,o.t).v>0);
+}
+function plRel(ids,mode){
+  const own=new Set(ids.map(id=>BYID.get(id)));
+  const out=new Map();
+  ids.forEach(id=>{
+    const hi=BYID.get(id);
+    plPairs(hi,mode).forEach(o=>{
+      const x=mode==='lose'?o.c:o.t; if(own.has(x)) return;
+      let e=out.get(x); if(!e){e={x,list:[],sum:0,n:0};out.set(x,e);}
+      e.list.push(hi); e.sum+=o.s; e.n=Math.max(e.n,o.src.length);
+    });
+  });
+  return [...out.values()].sort((a,b)=>b.list.length-a.list.length||b.sum-a.sum||b.n-a.n||H[a.x].th.localeCompare(H[b.x].th));
+}
+function plRow(e,mode){
+  const x=H[e.x], names=e.list.map(i=>esc(H[i].th)).join(', ');
+  return `<button type="button" class="cr chip plr" data-h="${esc(x.name)}"><img src="${x.img}" alt=""><div class="t"><b>${esc(x.th)}</b><span>${mode==='lose'?'ข่ม':'ใช้'} ${names}${mode==='lose'?'':' ข่ม'}</span></div><div class="n">${e.n?e.n+' แหล่ง':'ผลแข่งโปร'}<small>${e.list.length} ตัว</small></div></button>`;
+}
+function plColumn(title,sub,rows,mode,empty){
+  if(!rows.length) return `<section class="panel plcol"><h3>${title}</h3><p class="note">${sub}</p><p class="note">${empty}</p></section>`;
+  const top=rows.slice(0,10), rest=rows.slice(10);
+  return `<section class="panel plcol"><h3>${title} <small>${rows.length} ตัว</small></h3><p class="note">${sub}</p>
+    <div class="cl">${top.map(e=>plRow(e,mode)).join('')}</div>
+    ${rest.length?`<details class="xtra"><summary>ดูเพิ่มอีก ${rest.length} ตัว</summary><div class="cl" style="margin-top:6px">${rest.map(e=>plRow(e,mode)).join('')}</div></details>`:''}</section>`;
+}
+
+// ---------- หน้าแรกของแท็บผู้เล่น ----------
+function plRenderHome(){
+  plCur=null; document.title='คลังข้อมูล RoV';
+  const faces=p=>p.ids.slice(0,6).map(i=>`<img src="${H[BYID.get(i)].img}" alt="">`).join('');
+  $('viewPlayers').innerHTML=`<div class="pl-wrap">
+    <section class="panel">
+      <h2 class="pl-h">ผู้เล่น</h2>
+      <p class="pl-lead">เลือกฮีโร่ที่ผู้เล่นแต่ละคนถนัด แล้วดูว่าฮีโร่ตัวไหนข่มพวกเขา และตัวไหนที่พวกเขาข่มได้ แต่ละคนมีหน้าและลิงก์ของตัวเอง ส่งให้เพื่อนเปิดดูบนมือถือได้เลย</p>
+      <form class="pl-new" id="plNew"><input id="plNewName" type="text" maxlength="40" placeholder="ชื่อผู้เล่น เช่น ชื่อเพื่อน หรือ ฉัน" autocomplete="off" aria-label="ชื่อผู้เล่น">
+        <button type="submit" class="pl-btn pri">เพิ่มผู้เล่น</button></form>
+      ${favs.size?`<label class="chk pl-fromfav" for="plFromFav"><input type="checkbox" id="plFromFav">เริ่มด้วยฮีโร่โปรดของฉัน (${favs.size} ตัว)</label>`:''}
+    </section>
+    ${plList.length?`<div class="pl-cards">${plList.map(p=>`<div class="pl-card" data-pid="${p.id}">
+      <button type="button" class="pl-open" data-open="${p.id}"><b>${esc(p.name||'ไม่มีชื่อ')}</b><span class="pl-face">${faces(p)||'<em>ยังไม่ได้เลือกฮีโร่</em>'}</span><small>${p.ids.length} ตัวที่ถนัด</small></button>
+      <button type="button" class="pl-del" data-del="${p.id}">${plOpts.confirmDel===p.id?'แน่ใจ? กดอีกครั้ง':'ลบ'}</button></div>`).join('')}</div>`
+      :'<p class="note">ยังไม่มีผู้เล่น เพิ่มคนแรกได้ที่ช่องด้านบน</p>'}
+    <p class="note">รายชื่อเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ถ้าเปลี่ยนเครื่องหรือล้างข้อมูลเว็บ รายชื่อจะหาย ให้เปิดหน้าของคนนั้นแล้วคัดลอกลิงก์เก็บไว้ ลิงก์เปิดได้ทุกเครื่อง</p>
+  </div>`;
+}
+
+// ---------- หน้าของผู้เล่นแต่ละคน ----------
+function plRenderPage(){
+  if(!plCur) return plRenderHome();
+  plOpts.picker=plOpts.picker||!plCur.ids.length; plOpts.q='';
+  $('viewPlayers').innerHTML=`<div class="pl-wrap">
+    <div class="pl-top"><button type="button" class="pl-btn" id="plBack">← ผู้เล่นทั้งหมด</button></div>
+    <section class="panel">
+      <div class="pl-head"><input class="pl-name" id="plName" type="text" maxlength="40" value="${esc(plCur.name)}" placeholder="ชื่อผู้เล่น" aria-label="ชื่อผู้เล่น" autocomplete="off">
+        ${plCur.pid?'<span class="tag t2">บันทึกในเครื่องนี้แล้ว</span>':'<button type="button" class="pl-btn pri" id="plSave">บันทึกไว้ในเครื่องนี้</button>'}</div>
+      <div class="pl-link"><input id="plLink" type="text" readonly value="" aria-label="ลิงก์หน้าของผู้เล่น"><button type="button" class="pl-btn" id="plCopy">${plOpts.copied?'คัดลอกแล้ว':'คัดลอกลิงก์'}</button></div>
+      <p class="note">ลิงก์นี้เก็บชื่อและฮีโร่ที่เลือกไว้ในตัวลิงก์ ส่งให้เพื่อนแล้วเขาเปิดดูได้เลย แก้ไขแล้วลิงก์จะเปลี่ยนตาม ต้องส่งใหม่</p>
+    </section>
+    <section class="panel">
+      <div class="pl-sechead"><h3>ฮีโร่ที่ถนัด <small id="plCount"></small></h3><button type="button" class="pl-btn" id="plTogglePick"></button></div>
+      <div class="pl-pool" id="plChips"></div>
+      <div id="plPick"></div>
+    </section>
+    <div id="plRes"></div>
+  </div>`;
+  plRenderPool(); plRenderPick(); plRenderRes(); plSync();
+}
+function plRenderPool(){
+  const ids=plCur.ids;
+  $('plCount').textContent=ids.length?'('+ids.length+' ตัว)':'';
+  $('plTogglePick').textContent=plOpts.picker?'ปิดรายการเลือก':'เพิ่ม/ลบฮีโร่';
+  $('plChips').innerHTML=ids.length?ids.map(id=>{const h=H[BYID.get(id)];return `<span class="pc"><img src="${h.img}" alt="">${esc(h.th)}<button type="button" data-rm="${id}" aria-label="เอา ${esc(h.th)} ออก">×</button></span>`;}).join(''):'<p class="note">ยังไม่ได้เลือกฮีโร่ กดเลือกจากรายการด้านล่าง</p>';
+}
+function plRenderPick(){
+  const box=$('plPick'); if(!plOpts.picker){box.innerHTML='';return;}
+  box.innerHTML=`<div class="pl-pickbar"><label class="search" for="plQ"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="plQ" type="search" placeholder="ค้นหาฮีโร่" autocomplete="off" value="${esc(plOpts.q)}"></label>
+    ${favs.size?`<button type="button" class="pl-btn" id="plAddFav">เพิ่มฮีโร่โปรดทั้งหมด</button>`:''}</div>
+    <div class="hlist pl-picker" id="plGrid"></div>`;
+  plRenderGrid();
+}
+function plRenderGrid(){
+  const g=$('plGrid'); if(!g) return;
+  const q=plOpts.q.trim().toLowerCase(), sel=new Set(plCur.ids);
+  const list=H.filter(h=>!q||h.name.toLowerCase().includes(q)||h.th.toLowerCase().includes(q))
+    .sort((a,b)=>(favs.has(b.id)-favs.has(a.id))||a.th.localeCompare(b.th));
+  g.innerHTML=list.length?list.map(h=>`<button type="button" class="hbtn" data-pick="${h.id}" aria-pressed="${sel.has(h.id)}" title="${esc(h.th)}"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span>${favs.has(h.id)?'<i class="fv" aria-hidden="true">★</i>':''}</button>`).join(''):'<div class="empty">ไม่พบฮีโร่ชื่อนี้</div>';
+}
+function plRenderRes(){
+  const box=$('plRes'), ids=plCur.ids;
+  if(!ids.length){box.innerHTML='';return;}
+  const nm=esc(plCur.name||'ผู้เล่นคนนี้');
+  const lose=plRel(ids,'lose'), win=plRel(ids,'win');
+  const per=ids.map(id=>{
+    const hi=BYID.get(id), h=H[hi];
+    const L=plPairs(hi,'lose'), W=plPairs(hi,'win');
+    return `<details class="plh"><summary><img src="${h.img}" alt=""><b>${esc(h.th)}</b><small>โดนข่ม ${L.length} · ข่ม ${W.length}</small></summary>
+      <div class="sec"><h4>แพ้ทาง</h4>${ctrList(L,'c',h)}</div><div class="sec"><h4>ชนะทาง</h4>${ctrList(W,'t',h)}</div></details>`;
+  }).join('');
+  box.innerHTML=`<div class="pl-wrap">
+    <label class="chk pl-multi" for="plMulti"><input type="checkbox" id="plMulti" ${plOpts.multi?'checked':''}>แสดงเฉพาะคู่ที่มีอย่างน้อย 2 แหล่งระบุตรงกัน <span class="note">(ปิดเพื่อดูคู่ที่มีแหล่งเดียวด้วย ความน่าเชื่อถือต่ำกว่า)</span></label>
+    <div class="pl-cols">
+      ${plColumn('ต้องระวัง','ฮีโร่ที่แก้ทางฮีโร่ของ '+nm+' เรียงตามจำนวนตัวที่ข่มได้',lose,'lose','ไม่พบคู่ที่ผ่านเกณฑ์ ลองปิดตัวกรองแหล่งข้อมูลด้านบน')}
+      ${plColumn('ได้เปรียบ','ฮีโร่ที่ '+nm+' แก้ทางได้ เรียงตามจำนวนตัวที่ข่มได้',win,'win','ไม่พบคู่ที่ผ่านเกณฑ์ ลองปิดตัวกรองแหล่งข้อมูลด้านบน')}
+    </div>
+    <section class="panel"><h3>ดูทีละตัว <small>ข้อมูลเดียวกับแท็บ แพ้/ชนะทาง ของแต่ละฮีโร่</small></h3>${per}</section>
+    <p class="note">ตัวเลขทางขวาคือจำนวนแหล่งที่ระบุคู่นั้นตรงกัน (จากไกด์ผู้เล่นและผลแข่งโปร ดูที่มาในแท็บ ที่มา) หากแหล่งอื่นบอกกลับกัน คู่นั้นจะไม่ขึ้นเมื่อสุทธิแล้วเสียเปรียบ นี่เป็นข้อมูลเชิงสถิติและความเห็นผู้เล่น ไม่ใช่ผลชี้ขาดของทุกเกม ฝีมือและทีมมีผลมากกว่า</p>
+  </div>`;
+}
+
+// ---------- อีเวนต์ ----------
+$('viewPlayers').addEventListener('click',e=>{
+  const t=e.target;
+  const open=t.closest('[data-open]');
+  if(open){const p=plList.find(x=>x.id===open.dataset.open); if(p){plCur={pid:p.id,name:p.name,ids:p.ids.slice()};plOpts.picker=false;plRenderPage();} return;}
+  const del=t.closest('[data-del]');
+  if(del){const id=del.dataset.del;
+    if(plOpts.confirmDel===id){plList=plList.filter(p=>p.id!==id);plPersist();plOpts.confirmDel='';plRenderHome();}
+    else{plOpts.confirmDel=id;plRenderHome();clearTimeout(plTimer);plTimer=setTimeout(()=>{if(plOpts.confirmDel){plOpts.confirmDel='';if(!plCur&&!$('viewPlayers').hidden)plRenderHome();}},3000);}
+    return;}
+  if(t.closest('#plBack')){plCur=null;plOpts.picker=false;try{history.replaceState(null,'','#players')}catch(_){}plRenderHome();return;}
+  if(t.closest('#plSave')){
+    const p={id:plUid(),name:plCur.name,ids:plCur.ids.slice()};plList.push(p);plPersist();plCur.pid=p.id;plRenderPage();return;}
+  if(t.closest('#plCopy')){
+    const url=location.href, inp=$('plLink'), btn=$('plCopy');
+    const done=()=>{plOpts.copied=true;btn.textContent='คัดลอกแล้ว';setTimeout(()=>{plOpts.copied=false;if($('plCopy'))$('plCopy').textContent='คัดลอกลิงก์';},1800);};
+    const fb=()=>{inp.focus();inp.select();try{if(document.execCommand('copy'))done();}catch(_){}};
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done,fb); else fb();
+    return;}
+  if(t.closest('#plTogglePick')){plOpts.picker=!plOpts.picker;plRenderPool();plRenderPick();return;}
+  const rm=t.closest('[data-rm]');
+  if(rm){const id=+rm.dataset.rm;plCur.ids=plCur.ids.filter(x=>x!==id);plRenderPool();plRenderGrid();plRenderRes();plSync();return;}
+  const pk=t.closest('[data-pick]');
+  if(pk){const id=+pk.dataset.pick;
+    plCur.ids=plCur.ids.includes(id)?plCur.ids.filter(x=>x!==id):[...plCur.ids,id];
+    pk.setAttribute('aria-pressed',plCur.ids.includes(id));
+    plRenderPool();plRenderRes();plSync();return;}
+  if(t.closest('#plAddFav')){plCur.ids=[...new Set([...plCur.ids,...[...favs].filter(i=>BYID.has(i))])];plRenderPool();plRenderGrid();plRenderRes();plSync();return;}
+  const c=t.closest('.chip[data-h]');
+  if(c){window.openHero(c.dataset.h);}
+});
+$('viewPlayers').addEventListener('input',e=>{
+  if(e.target.id==='plName'){plCur.name=e.target.value.slice(0,40);plSync();}
+  else if(e.target.id==='plQ'){plOpts.q=e.target.value;plRenderGrid();}
+});
+$('viewPlayers').addEventListener('change',e=>{
+  if(e.target.id==='plMulti'){plOpts.multi=e.target.checked;plRenderRes();}
+});
+$('viewPlayers').addEventListener('submit',e=>{
+  if(e.target.id!=='plNew') return;
+  e.preventDefault();
+  const name=($('plNewName').value||'').trim().slice(0,40)||'ผู้เล่นใหม่';
+  const fromFav=$('plFromFav')&&$('plFromFav').checked;
+  const p={id:plUid(),name,ids:fromFav?[...favs].filter(i=>BYID.has(i)):[]};
+  plList.push(p);plPersist();plCur={pid:p.id,name:p.name,ids:p.ids.slice()};plOpts.picker=!p.ids.length;plRenderPage();
+});
+addEventListener('hashchange',()=>{
+  const hv=location.hash.slice(1);
+  if(hv.startsWith('p=')){if(plRoute()){plOpts.picker=false;showView('players');}}
+  else if(VIEWS[hv]){if(hv==='players')plCur=null;showView(hv);}
+});
+
+const VIEWS={lib:'viewLib',draft:'viewDraft',players:'viewPlayers',items:'viewItems',sim:'viewSim',about:'viewAbout'};
 function showView(v){document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===v));
-  for(const k in VIEWS)$$(VIEWS[k]).hidden=k!==v;if(v==='draft')renderDraft();try{history.replaceState(null,'','#'+v)}catch(e){}}
-document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showView(b.dataset.view);});
-{const hv=location.hash.slice(1);if(VIEWS[hv]&&hv!=='lib')showView(hv);}
+  for(const k in VIEWS)$$(VIEWS[k]).hidden=k!==v;if(v==='draft')renderDraft();if(v==='players')plShow();try{if(!(v==='players'&&plCur))history.replaceState(null,'','#'+v)}catch(e){}}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){if(b.dataset.view==='players')plCur=null;showView(b.dataset.view);}});
+{const hv=location.hash.slice(1);if(hv.startsWith('p=')){if(plRoute())showView('players');}else if(VIEWS[hv]&&hv!=='lib')showView(hv);}
 $('ctrSrc').insertAdjacentHTML('beforeend',`<ul class="srcs" style="margin-top:6px">${Object.values(CSRC).map(v=>v[2]?`<li><a href="${v[2]}" target="_blank" rel="noopener">${v[0]}</a> · ${v[1]}</li>`:`<li>${v[0]} · ${v[1]}</li>`).join('')}<li>ผลแข่งโปร RPL, AoG, GCS, APL, AIC 2024–2026 (golfdesu/rov) ใช้ยืนยันหรือหักล้าง</li></ul>`);
 render();
 open((filtered()[0]||H[0]).name);
