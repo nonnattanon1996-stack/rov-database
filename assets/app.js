@@ -453,7 +453,7 @@ plList.forEach(p=>{p.ids=p.ids.filter(n=>BYID.has(n));p.name=String(p.name||'').
 const plPersist=()=>LS.set(PL_KEY,plList);
 const plUid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const sameSet=(a,b)=>a.length===b.length&&a.every(x=>b.includes(x));
-const plOpts={picker:false,q:'',copied:false,confirmDel:'',enemy:null,metaEdit:false,mq:'',hadRes:false};
+const plOpts={picker:false,q:'',copied:false,confirmDel:'',enemy:null,metaEdit:false,mq:'',hadRes:false,pos:''};
 let plTimer=0;
 
 function plHash(p){return '#p='+encodeURIComponent((p.name||'').replace(/~/g,'-'))+'~'+p.ids.map(n=>n.toString(36)).join('.');}
@@ -486,8 +486,22 @@ const WHY=RAW.why||{};
 const META_KEY='rov.meta.v1';
 let metaIds=LS.get(META_KEY,null);
 metaIds=Array.isArray(metaIds)?metaIds.filter(n=>BYID.has(n)):null;
-const metaDefault=()=>H.slice().sort((a,b)=>(b.pres||0)-(a.pres||0)).slice(0,14).map(h=>h.id);
+// ตำแหน่ง = เลนที่ฮีโร่ถูกเลือกเล่นในการแข่งโปร (lp = สัดส่วนต่อเลน) นับว่าเล่นตำแหน่งนั้นถ้าเป็นเลนหลักหรือมีสัดส่วน 15% ขึ้นไป
+const POS=[['','ทุกตำแหน่ง'],['DS_Lane','Dark Slayer'],['Jungle','ป่า'],['Mid','กลาง'],['Dragon_Lane','มังกร'],['Roam','โรมมิ่ง']];
+const LIDX={DS_Lane:0,Jungle:1,Mid:2,Dragon_Lane:3,Roam:4};
+const plays=(h,lane)=>!lane||h.lane===lane||(h.lp&&h.lp[LIDX[lane]]>=0.15);
+const posLabel=l=>(POS.find(x=>x[0]===l)||['',''])[1];
+function plPosBar(){
+  return `<div class="chips pl-pos" role="group" aria-label="ตำแหน่ง">${POS.map(([k,v])=>`<button type="button" class="rchip" data-pos="${k}" aria-pressed="${plOpts.pos===k}">${v}</button>`).join('')}</div>`;
+}
+// ค่าเริ่มต้น: ตำแหน่งละ 6 อันดับแรกที่ถูกเลือกหรือแบนบ่อยที่สุด (รวมกันไม่ซ้ำ เรียงตามความถี่)
+const metaDefault=()=>{
+  const ids=new Set();
+  POS.slice(1).forEach(([l])=>H.filter(h=>plays(h,l)).sort((a,b)=>(b.pres||0)-(a.pres||0)).slice(0,6).forEach(h=>ids.add(h.id)));
+  return H.filter(h=>ids.has(h.id)).sort((a,b)=>(b.pres||0)-(a.pres||0)).map(h=>h.id);
+};
 const metaList=()=>metaIds||metaDefault();
+const metaShown=()=>metaList().filter(id=>plays(H[BYID.get(id)],plOpts.pos));
 const metaSave=()=>LS.set(META_KEY,metaIds);
 
 // หลักฐานของคู่ (ฮีโร่ของผู้เล่น hi, ฮีโร่ศัตรู xi): ใช้ข้อมูลเดียวกับแท็บ แพ้/ชนะทาง
@@ -579,13 +593,14 @@ function plRenderPick(){
   const box=$('plPick'); if(!plOpts.picker){box.innerHTML='';return;}
   box.innerHTML=`<div class="pl-pickbar"><label class="search" for="plQ"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="plQ" type="search" placeholder="ค้นหาฮีโร่" autocomplete="off" value="${esc(plOpts.q)}"></label>
     ${favs.size?`<button type="button" class="pl-btn" id="plAddFav">เพิ่มฮีโร่โปรดทั้งหมด</button>`:''}</div>
+    ${plPosBar()}
     <div class="hlist pl-picker" id="plGrid"></div>`;
   plRenderGrid();
 }
 function plRenderGrid(){
   const g=$('plGrid'); if(!g) return;
   const q=plOpts.q.trim().toLowerCase(), sel=new Set(plCur.ids);
-  const list=H.filter(h=>!q||h.name.toLowerCase().includes(q)||h.th.toLowerCase().includes(q))
+  const list=H.filter(h=>plays(h,plOpts.pos)&&(!q||h.name.toLowerCase().includes(q)||h.th.toLowerCase().includes(q)))
     .sort((a,b)=>(favs.has(b.id)-favs.has(a.id))||a.th.localeCompare(b.th));
   g.innerHTML=list.length?list.map(h=>`<button type="button" class="hbtn" data-pick="${h.id}" aria-pressed="${sel.has(h.id)}" title="${esc(h.th)}"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span>${favs.has(h.id)?'<i class="fv" aria-hidden="true">★</i>':''}</button>`).join(''):'<div class="empty">ไม่พบฮีโร่ชื่อนี้</div>';
 }
@@ -607,17 +622,18 @@ function plAfterPool(){
 }
 function plRenderMeta(){
   const box=$('plMeta'); if(!box) return;
-  const list=metaList(), edit=plOpts.metaEdit;
-  box.innerHTML=`<div class="pl-sechead"><h3>ฮีโร่เมต้า <small>ถูกเลือกหรือแบนบ่อยในการแข่งโปร 2024–2026</small></h3><button type="button" class="pl-btn" id="plMetaEdit">${edit?'เสร็จ':'เพิ่ม/ลบรายการ'}</button></div>
+  const list=metaShown(), edit=plOpts.metaEdit;
+  box.innerHTML=`<div class="pl-sechead"><h3>ฮีโร่เมต้า <small>ตำแหน่งละ 6 อันดับที่ถูกเลือกหรือแบนบ่อยในแข่งโปร 2024–2026</small></h3><button type="button" class="pl-btn" id="plMetaEdit">${edit?'เสร็จ':'เพิ่ม/ลบรายการ'}</button></div>
     <p class="note">กดเลือกตัวที่ศัตรูหยิบ แล้วดูว่าฮีโร่ถนัดตัวไหนรับมือได้ ค่าเริ่มต้นนับจากข้อมูลแข่งโปร ซึ่งอาจต่างจากเมต้าในแรงก์ธรรมดา แก้ให้ตรงกับที่คุณเจอได้</p>
-    <div class="hlist pl-metagrid">${list.map(id=>{const h=H[BYID.get(id)];return `<button type="button" class="hbtn" data-enemy="${id}" aria-pressed="${plOpts.enemy===id}" title="${esc(h.th)} · เลือก ${h.pick}% แบน ${h.ban}% (ข้อมูลโปร)"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span>${edit?`<i class="mrm" data-mrm="${id}" role="button" aria-label="เอา ${esc(h.th)} ออก">×</i>`:''}</button>`;}).join('')}</div>
+    ${plPosBar()}
+    <div class="hlist pl-metagrid">${list.length?list.map(id=>{const h=H[BYID.get(id)];return `<button type="button" class="hbtn" data-enemy="${id}" aria-pressed="${plOpts.enemy===id}" title="${esc(h.th)} · เลือก ${h.pick}% แบน ${h.ban}% (ข้อมูลโปร)"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span>${edit?`<i class="mrm" data-mrm="${id}" role="button" aria-label="เอา ${esc(h.th)} ออก">×</i>`:''}</button>`;}).join(''):'<div class="empty">ไม่มีฮีโร่เมต้าในตำแหน่งนี้ในรายการของคุณ กด "เพิ่ม/ลบรายการ" เพื่อเพิ่ม</div>'}</div>
     ${edit?`<div class="pl-pickbar"><label class="search" for="plMQ"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="plMQ" type="search" placeholder="ค้นหาฮีโร่ที่จะเพิ่มหรือลบ" autocomplete="off" value="${esc(plOpts.mq)}"></label><button type="button" class="pl-btn" id="plMetaReset">คืนค่าเริ่มต้น</button></div><div class="hlist pl-picker" id="plMGrid"></div>`:''}`;
   if(edit) plRenderMGrid();
 }
 function plRenderMGrid(){
   const g=$('plMGrid'); if(!g) return;
   const q=plOpts.mq.trim().toLowerCase(), cur=new Set(metaList());
-  const list=H.filter(h=>!q||h.name.toLowerCase().includes(q)||h.th.toLowerCase().includes(q)).sort((a,b)=>a.th.localeCompare(b.th));
+  const list=H.filter(h=>plays(h,plOpts.pos)&&(!q||h.name.toLowerCase().includes(q)||h.th.toLowerCase().includes(q))).sort((a,b)=>a.th.localeCompare(b.th));
   g.innerHTML=list.length?list.map(h=>`<button type="button" class="hbtn" data-madd="${h.id}" aria-pressed="${cur.has(h.id)}" title="${esc(h.th)}"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span></button>`).join(''):'<div class="empty">ไม่พบฮีโร่ชื่อนี้</div>';
 }
 function plRenderEnemy(){
@@ -625,7 +641,8 @@ function plRenderEnemy(){
   const xi=plOpts.enemy==null?null:BYID.get(plOpts.enemy);
   if(xi==null){box.innerHTML='<p class="note pl-hint">กดเลือกฮีโร่เมต้าที่ศัตรูหยิบด้านบน ระบบจะบอกว่าในฮีโร่ถนัดของ '+esc(plCur.name||'ผู้เล่นคนนี้')+' ตัวไหนรับมือได้ดีที่สุด พร้อมวิธีรับมือ</p>';return;}
   const X=H[xi];
-  const rows=plCur.ids.map(id=>BYID.get(id)).filter(hi=>hi!==xi).map(hi=>({hi,ev:plEv(hi,xi)}));
+  const mine=plCur.ids.map(id=>BYID.get(id)).filter(hi=>hi!==xi), vis=mine.filter(hi=>plays(H[hi],plOpts.pos));
+  const rows=vis.map(hi=>({hi,ev:plEv(hi,xi)}));
   const srt=(a,b)=>(b.ev.n-a.ev.n)||((b.ev.o?b.ev.o.s:0)-(a.ev.o?a.ev.o.s:0));
   const by=s=>rows.filter(r=>r.ev.dir===1&&r.ev.stars===s).sort(srt).map(r=>plEvRow(r.hi,r.ev,false));
   const lose=rows.filter(r=>r.ev.dir===-1).sort(srt).map(r=>plEvRow(r.hi,r.ev,true));
@@ -640,7 +657,8 @@ function plRenderEnemy(){
     ${plGroup('g2','★★ ได้เปรียบ','2 แหล่งระบุตรงกัน',by(2))}
     ${plGroup('g1','★ พอมีทาง','แหล่งเดียว ผลโปร หรือความเห็นวิเคราะห์ น่าเชื่อถือน้อย',by(1))}
     ${plGroup('bad','เสียเปรียบ','ศัตรูตัวนี้ข่มฮีโร่เหล่านี้ ควรเลี่ยงถ้าเลือกได้',lose)}
-    ${good||lose.length?'':'<p class="note">ฮีโร่ถนัดของ '+esc(plCur.name||'ผู้เล่นคนนี้')+' ยังไม่มีข้อมูลคู่กับ '+esc(X.th)+' เลย ลองเพิ่มฮีโร่ถนัดอีกสองสามตัว</p>'}
+    ${plOpts.pos?`<p class="note">แสดงเฉพาะฮีโร่ที่เล่นตำแหน่ง${posLabel(plOpts.pos)} ${mine.length-vis.length?'(ซ่อน '+(mine.length-vis.length)+' ตัวที่เล่นตำแหน่งอื่น)':''}</p>`:''}
+    ${!vis.length?'<p class="note">ในฮีโร่ถนัดไม่มีตัวที่เล่นตำแหน่งนี้ กดเลือก "ทุกตำแหน่ง" หรือเพิ่มฮีโร่ถนัด</p>':(good||lose.length?'':'<p class="note">ฮีโร่ถนัดของ '+esc(plCur.name||'ผู้เล่นคนนี้')+' ยังไม่มีข้อมูลคู่กับ '+esc(X.th)+' เลย ลองเพิ่มฮีโร่ถนัดอีกสองสามตัว</p>')}
     ${none.length?`<details class="xtra"><summary>ยังไม่มีข้อมูลคู่นี้ ${none.length} ตัว</summary><div class="pl-nolist">${none.map(r=>`<button type="button" class="chip" data-h="${esc(H[r.hi].name)}"><img src="${H[r.hi].img}" alt="" width="22" height="22"> ${esc(H[r.hi].th)}${r.ev.dir===2?' (แหล่งขัดกัน)':''}</button>`).join('')}</div></details>`:''}`;
 }
 function plRenderPer(){
@@ -674,6 +692,12 @@ $('viewPlayers').addEventListener('click',e=>{
     if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done,fb); else fb();
     return;}
   if(t.closest('#plTogglePick')){plOpts.picker=!plOpts.picker;plRenderPool();plRenderPick();return;}
+  const ps=t.closest('[data-pos]');
+  if(ps){plOpts.pos=ps.dataset.pos;
+    document.querySelectorAll('#viewPlayers .pl-pos .rchip').forEach(b=>b.setAttribute('aria-pressed',b.dataset.pos===plOpts.pos));
+    plRenderGrid();
+    if($('plMeta')){const g=$('plMGrid');plRenderMeta();}
+    plRenderEnemy();return;}
   const mrm=t.closest('[data-mrm]');
   if(mrm){const id=+mrm.dataset.mrm;metaIds=metaList().filter(x=>x!==id);metaSave();if(plOpts.enemy===id)plOpts.enemy=null;plRenderMeta();plRenderEnemy();return;}
   const ma=t.closest('[data-madd]');
