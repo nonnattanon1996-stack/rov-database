@@ -358,6 +358,37 @@ header.top h1{font-size:22px;font-weight:700;line-height:1.2}
 .plh .sec{margin-bottom:10px}
 @media (max-width:860px){.pl-cols{grid-template-columns:minmax(0,1fr)}}
 @media (pointer:coarse){.star{width:44px;height:44px}.pl-btn{min-height:44px}.pl-pool .pc button{width:32px;height:32px}}
+.pl-metagrid{position:static;max-height:none;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));margin:6px 0 4px}
+.pl-metagrid .hbtn .mrm{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--bad);color:#fff;font-style:normal;font-size:15px;line-height:22px;text-align:center;z-index:1;cursor:pointer}
+.pl-hint{margin:0}
+.pl-xhead{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.pl-xhead img{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none}
+.pl-xhead h3{margin:0 0 6px;font-size:18px}
+.pl-tips ul{margin:6px 0 0;padding-left:18px;line-height:1.6;font-size:14px}
+.pl-grp{margin-top:16px}
+.pl-grp h4{margin:0 0 8px;font-size:16px}
+.pl-grp h4 small{font-family:var(--body);font-weight:400;font-size:12px;color:var(--dim)}
+.pl-grp.bad h4{color:var(--bad)}
+.pl-evs{display:flex;flex-direction:column;gap:8px}
+.pl-ev{background:var(--panel2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.pl-evh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pl-evbtn{display:inline-flex;align-items:center;gap:8px;padding:3px 12px 3px 3px}
+.pl-evbtn img{width:34px;height:34px;border-radius:9px;object-fit:cover}
+.pl-evbtn b{font-size:15.5px}
+.pl-stars{color:var(--acc);letter-spacing:1px;font-size:16px}
+.pl-conf{font-size:12px;color:var(--bad)}
+.pl-evh small{margin-left:auto;color:var(--dim);font-size:12px}
+.pl-how{margin:0;line-height:1.6;font-size:14px}
+.pl-meta2{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--dim)}
+.pl-meta2 .pw{color:var(--good)}.pl-meta2 .pl{color:var(--bad)}
+.pl-nolist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pl-nolist .chip{display:inline-flex;align-items:center;gap:6px;padding:3px 12px 3px 4px}
+.pl-nolist .chip img{border-radius:50%}
+#plEnemy .xtra summary,#plPer h3{cursor:pointer}
+#plPer h3{margin:0 0 6px;font-size:17px}
+#plPer h3 small{font-family:var(--body);font-weight:400;font-size:12px;color:var(--dim)}
+.pl-ev details.why{margin:0;padding:0}
+.pl-ev details.why>summary{padding:2px 0}
 
 /* ===== intro: scattered cards → circle → scroll-driven rainbow arc ===== */
 #intro{--ic:64px;position:relative;height:150vh;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px))) calc(-1*max(16px,env(safe-area-inset-right,0px)));}

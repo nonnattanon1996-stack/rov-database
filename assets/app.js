@@ -453,7 +453,7 @@ plList.forEach(p=>{p.ids=p.ids.filter(n=>BYID.has(n));p.name=String(p.name||'').
 const plPersist=()=>LS.set(PL_KEY,plList);
 const plUid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const sameSet=(a,b)=>a.length===b.length&&a.every(x=>b.includes(x));
-const plOpts={multi:true,picker:false,q:'',copied:false,confirmDel:''};
+const plOpts={picker:false,q:'',copied:false,confirmDel:'',enemy:null,metaEdit:false,mq:'',hadRes:false};
 let plTimer=0;
 
 function plHash(p){return '#p='+encodeURIComponent((p.name||'').replace(/~/g,'-'))+'~'+p.ids.map(n=>n.toString(36)).join('.');}
@@ -481,35 +481,51 @@ function plShow(){
   if(plCur) plRenderPage(); else plRenderHome();
 }
 
-// ความสัมพันธ์ชนะ/แพ้ทางของทั้งกลุ่ม ใช้ข้อมูลเดียวกับแท็บ "แพ้/ชนะทาง" ของแต่ละฮีโร่
-// mode 'lose': ตัวที่แก้ทางฮีโร่ในกลุ่ม · mode 'win': ตัวที่ฮีโร่ในกลุ่มแก้ทางได้
-function plPairs(hi,mode){
-  const src=(mode==='lose'?CBY:CVS).get(hi)||[];
-  return src.filter(o=>(!plOpts.multi||o.src.length>=2)&&adv(o.c,o.t).v>0);
+// ---------- ฮีโร่เมต้า (ค่าเริ่มต้นคำนวณจากข้อมูลแข่งโปร แก้ไขเพิ่มลดได้ เก็บในเครื่องนี้) ----------
+const WHY=RAW.why||{};
+const META_KEY='rov.meta.v1';
+let metaIds=LS.get(META_KEY,null);
+metaIds=Array.isArray(metaIds)?metaIds.filter(n=>BYID.has(n)):null;
+const metaDefault=()=>H.slice().sort((a,b)=>(b.pres||0)-(a.pres||0)).slice(0,14).map(h=>h.id);
+const metaList=()=>metaIds||metaDefault();
+const metaSave=()=>LS.set(META_KEY,metaIds);
+
+// หลักฐานของคู่ (ฮีโร่ของผู้เล่น hi, ฮีโร่ศัตรู xi): ใช้ข้อมูลเดียวกับแท็บ แพ้/ชนะทาง
+// dir 1 = hi ข่มศัตรู, -1 = ศัตรูข่ม hi, 2 = แหล่งขัดกัน, 0 = ไม่มีข้อมูล
+// ดาว: 3 = ตั้งแต่ 3 แหล่งตรงกัน, 2 = 2 แหล่ง, 1 = แหล่งเดียว/ผลโปร/บทความหรือความเห็นวิเคราะห์ (น่าเชื่อถือน้อย)
+function plEv(hi,xi){
+  const hn=H[hi].name, xn=H[xi].name;
+  const a=adv(hi,xi), wWin=WHY[hn+'>'+xn], wLose=WHY[xn+'>'+hn];
+  let dir=0;
+  if(a.has) dir=a.v>0?1:a.v<0?-1:2;
+  else if(wWin&&wLose) dir=2; else if(wWin) dir=1; else if(wLose) dir=-1;
+  if(dir===0||dir===2) return {dir};
+  const o=dir>0?CT.get(hi*256+xi):CT.get(xi*256+hi);
+  const W=dir>0?wWin:wLose, n=o?o.src.length:0;
+  return {dir,o,W,n,stars:o?(n>=3?3:n===2?2:1):1};
 }
-function plRel(ids,mode){
-  const own=new Set(ids.map(id=>BYID.get(id)));
-  const out=new Map();
-  ids.forEach(id=>{
-    const hi=BYID.get(id);
-    plPairs(hi,mode).forEach(o=>{
-      const x=mode==='lose'?o.c:o.t; if(own.has(x)) return;
-      let e=out.get(x); if(!e){e={x,list:[],sum:0,n:0};out.set(x,e);}
-      e.list.push(hi); e.sum+=o.s; e.n=Math.max(e.n,o.src.length);
-    });
-  });
-  return [...out.values()].sort((a,b)=>b.list.length-a.list.length||b.sum-a.sum||b.n-a.n||H[a.x].th.localeCompare(H[b.x].th));
+const plHow=W=>W?((W.s&&W.s[0])?W.s[0].h:(W.o?W.o.h:'')):'';
+const plWhyTxt=W=>W?((W.s&&W.s[0])?W.s[0].w:(W.o?W.o.w:'')):'';
+function plWhyBlocks(W){
+  if(!W) return '';
+  const sp=(W.s||[]).map(r=>`<div class="wb src"><span class="tag">จากบทความ · ${esc(r.s)}</span><p>${esc(r.w)}</p><p class="how"><b>วิธีเล่น:</b> ${esc(r.h)}</p></div>`).join('');
+  const op=W.o?`<div class="wb op"><span class="tag">${W.o.t==='c'?'ความเห็น Claude (วิเคราะห์จากสกิล)':'สรุปอัตโนมัติจากสกิล (ความเห็น Claude ไม่ใช่คำพูดโปร)'}</span><p>${esc(W.o.w)}</p><p class="how"><b>วิธีเล่น:</b> ${esc(W.o.h)}</p></div>`:'';
+  return sp+op;
 }
-function plRow(e,mode){
-  const x=H[e.x], names=e.list.map(i=>esc(H[i].th)).join(', ');
-  return `<button type="button" class="cr chip plr" data-h="${esc(x.name)}"><img src="${x.img}" alt=""><div class="t"><b>${esc(x.th)}</b><span>${mode==='lose'?'ข่ม':'ใช้'} ${names}${mode==='lose'?'':' ข่ม'}</span></div><div class="n">${e.n?e.n+' แหล่ง':'ผลแข่งโปร'}<small>${e.list.length} ตัว</small></div></button>`;
+function plEvRow(hi,ev,lose){
+  const h=H[hi], o=ev.o;
+  const srcTxt=o?(o.src.length?o.src.map(k=>CS_SHORT[k]||k).join(' · '):'ผลแข่งโปร'):(ev.W&&ev.W.s?'บทความ':'ความเห็น Claude');
+  const pr=o&&o.pro?`<span class="${(o.pro[1]/o.pro[0]>=.53)===!lose?'pw':'pl'}">ผลแข่งโปร${o.pro[2]?'เลนเดียวกัน':'ทุกคู่'} ฝั่ง${lose?'ศัตรู':'นี้'}ชนะ ${o.pro[1]}/${o.pro[0]} เกม (${Math.round(o.pro[1]/o.pro[0]*100)}%)${o.pro[1]/o.pro[0]<=.47?' · สวนทางกับไกด์':''}</span>`:'';
+  const rev=o&&o.rev&&o.rev.length?`<span class="pl">มีแหล่งที่บอกกลับกัน: ${o.rev.map(k=>CS_SHORT[k]||k).join(', ')}</span>`:'';
+  const text=lose
+    ?(plWhyTxt(ev.W)?`<p class="pl-how"><b>เสียเปรียบเพราะ:</b> ${esc(plWhyTxt(ev.W))}</p>`:'<p class="note">ยังไม่มีบทวิเคราะห์ของคู่นี้ มีแต่ตัวเลขจากแหล่งข้อมูล</p>')
+    :(plHow(ev.W)?`<p class="pl-how"><b>วิธีรับมือ:</b> ${esc(plHow(ev.W))}</p>`:'<p class="note">ยังไม่มีบทวิเคราะห์วิธีเล่นของคู่นี้ มีแต่ตัวเลขจากแหล่งข้อมูล</p>');
+  const stars=lose?`<span class="pl-conf">${ev.n?ev.n+' แหล่ง':'ข้อมูลน้อย'}</span>`:`<span class="pl-stars" role="img" aria-label="${ev.stars} ดาวจาก 3">${'★'.repeat(ev.stars)}${'☆'.repeat(3-ev.stars)}</span>`;
+  return `<div class="pl-ev"><div class="pl-evh"><button type="button" class="chip pl-evbtn" data-h="${esc(h.name)}"><img src="${h.img}" alt=""><b>${esc(h.th)}</b></button>${stars}<small>${esc(srcTxt)}</small></div>${text}${pr||rev?`<div class="pl-meta2">${pr}${rev}</div>`:''}${ev.W?`<details class="why"><summary>เหตุผลและรายละเอียด</summary>${plWhyBlocks(ev.W)}</details>`:''}</div>`;
 }
-function plColumn(title,sub,rows,mode,empty){
-  if(!rows.length) return `<section class="panel plcol"><h3>${title}</h3><p class="note">${sub}</p><p class="note">${empty}</p></section>`;
-  const top=rows.slice(0,10), rest=rows.slice(10);
-  return `<section class="panel plcol"><h3>${title} <small>${rows.length} ตัว</small></h3><p class="note">${sub}</p>
-    <div class="cl">${top.map(e=>plRow(e,mode)).join('')}</div>
-    ${rest.length?`<details class="xtra"><summary>ดูเพิ่มอีก ${rest.length} ตัว</summary><div class="cl" style="margin-top:6px">${rest.map(e=>plRow(e,mode)).join('')}</div></details>`:''}</section>`;
+function plGroup(cls,title,sub,rows){
+  if(!rows.length) return '';
+  return `<section class="pl-grp ${cls}"><h4>${title} <small>${sub}</small></h4><div class="pl-evs">${rows.join('')}</div></section>`;
 }
 
 // ---------- หน้าแรกของแท็บผู้เล่น ----------
@@ -575,24 +591,67 @@ function plRenderGrid(){
 }
 function plRenderRes(){
   const box=$('plRes'), ids=plCur.ids;
-  if(!ids.length){box.innerHTML='';return;}
-  const nm=esc(plCur.name||'ผู้เล่นคนนี้');
-  const lose=plRel(ids,'lose'), win=plRel(ids,'win');
-  const per=ids.map(id=>{
+  plOpts.hadRes=ids.length>0;
+  if(!ids.length){box.innerHTML='<p class="note">เลือกฮีโร่ที่ถนัดก่อน แล้วจะเลือกฮีโร่เมต้าของศัตรูเพื่อดูว่าควรเล่นตัวไหนได้</p>';return;}
+  box.innerHTML=`<div class="pl-wrap">
+    <section class="panel" id="plMeta"></section>
+    <section class="panel" id="plEnemy"></section>
+    <section class="panel" id="plPer"></section>
+    <p class="note">ดาวบอกความมั่นใจของข้อมูล ไม่ใช่การรับประกันผลเกม: ★★★ ตั้งแต่ 3 แหล่งระบุตรงกัน, ★★ 2 แหล่ง, ★ แหล่งเดียว ผลแข่งโปร หรือความเห็นวิเคราะห์ (ดูที่มาในแท็บ ที่มา) ถ้าแหล่งอื่นบอกกลับกัน ระบบนับสุทธิให้ ฝีมือ ทีม และจังหวะเกมมีผลมากกว่าคู่ชนะแพ้ทางเสมอ</p>
+  </div>`;
+  plRenderMeta(); plRenderEnemy(); plRenderPer();
+}
+function plAfterPool(){
+  if((plCur.ids.length>0)!==plOpts.hadRes) plRenderRes();
+  else {plRenderEnemy();plRenderPer();}
+}
+function plRenderMeta(){
+  const box=$('plMeta'); if(!box) return;
+  const list=metaList(), edit=plOpts.metaEdit;
+  box.innerHTML=`<div class="pl-sechead"><h3>ฮีโร่เมต้า <small>ถูกเลือกหรือแบนบ่อยในการแข่งโปร 2024–2026</small></h3><button type="button" class="pl-btn" id="plMetaEdit">${edit?'เสร็จ':'เพิ่ม/ลบรายการ'}</button></div>
+    <p class="note">กดเลือกตัวที่ศัตรูหยิบ แล้วดูว่าฮีโร่ถนัดตัวไหนรับมือได้ ค่าเริ่มต้นนับจากข้อมูลแข่งโปร ซึ่งอาจต่างจากเมต้าในแรงก์ธรรมดา แก้ให้ตรงกับที่คุณเจอได้</p>
+    <div class="hlist pl-metagrid">${list.map(id=>{const h=H[BYID.get(id)];return `<button type="button" class="hbtn" data-enemy="${id}" aria-pressed="${plOpts.enemy===id}" title="${esc(h.th)} · เลือก ${h.pick}% แบน ${h.ban}% (ข้อมูลโปร)"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span>${edit?`<i class="mrm" data-mrm="${id}" role="button" aria-label="เอา ${esc(h.th)} ออก">×</i>`:''}</button>`;}).join('')}</div>
+    ${edit?`<div class="pl-pickbar"><label class="search" for="plMQ"><span aria-hidden="true" style="color:var(--dim)">⌕</span><input id="plMQ" type="search" placeholder="ค้นหาฮีโร่ที่จะเพิ่มหรือลบ" autocomplete="off" value="${esc(plOpts.mq)}"></label><button type="button" class="pl-btn" id="plMetaReset">คืนค่าเริ่มต้น</button></div><div class="hlist pl-picker" id="plMGrid"></div>`:''}`;
+  if(edit) plRenderMGrid();
+}
+function plRenderMGrid(){
+  const g=$('plMGrid'); if(!g) return;
+  const q=plOpts.mq.trim().toLowerCase(), cur=new Set(metaList());
+  const list=H.filter(h=>!q||h.name.toLowerCase().includes(q)||h.th.toLowerCase().includes(q)).sort((a,b)=>a.th.localeCompare(b.th));
+  g.innerHTML=list.length?list.map(h=>`<button type="button" class="hbtn" data-madd="${h.id}" aria-pressed="${cur.has(h.id)}" title="${esc(h.th)}"><img src="${h.img}" alt="" loading="lazy" width="44" height="44"><span>${esc(h.th)}</span></button>`).join(''):'<div class="empty">ไม่พบฮีโร่ชื่อนี้</div>';
+}
+function plRenderEnemy(){
+  const box=$('plEnemy'); if(!box) return;
+  const xi=plOpts.enemy==null?null:BYID.get(plOpts.enemy);
+  if(xi==null){box.innerHTML='<p class="note pl-hint">กดเลือกฮีโร่เมต้าที่ศัตรูหยิบด้านบน ระบบจะบอกว่าในฮีโร่ถนัดของ '+esc(plCur.name||'ผู้เล่นคนนี้')+' ตัวไหนรับมือได้ดีที่สุด พร้อมวิธีรับมือ</p>';return;}
+  const X=H[xi];
+  const rows=plCur.ids.map(id=>BYID.get(id)).filter(hi=>hi!==xi).map(hi=>({hi,ev:plEv(hi,xi)}));
+  const srt=(a,b)=>(b.ev.n-a.ev.n)||((b.ev.o?b.ev.o.s:0)-(a.ev.o?a.ev.o.s:0));
+  const by=s=>rows.filter(r=>r.ev.dir===1&&r.ev.stars===s).sort(srt).map(r=>plEvRow(r.hi,r.ev,false));
+  const lose=rows.filter(r=>r.ev.dir===-1).sort(srt).map(r=>plEvRow(r.hi,r.ev,true));
+  const none=rows.filter(r=>r.ev.dir===0||r.ev.dir===2);
+  const role=[ROLE_TH[X.role]||X.role, X.role2?(ROLE_TH[X.role2]||X.role2):''].filter(Boolean).join(' / ');
+  const sk=Object.entries(X.styles).sort((a,b)=>b[1].lv-a[1].lv).slice(0,2);
+  const tips=sk.length?`<details class="xtra pl-tips"><summary>ภาพรวมวิธีรับมือสายการเล่นของ ${esc(X.th)}</summary><ul>${sk.map(([k])=>`<li><b>${STY[k].name}:</b> ${STY[k].counter.slice(0,2).join(' · ')}</li>`).join('')}</ul></details>`:'';
+  const good=by(3).length+by(2).length+by(1).length;
+  box.innerHTML=`<div class="pl-xhead"><img src="${X.img}" alt="" width="56" height="56"><div><h3>ถ้าศัตรูเลือก ${esc(X.th)}</h3><div class="tags"><span class="tag">${role}</span><span class="tag">${LANE_TH[X.lane]||X.lane}</span><span class="tag t2">Tier ${esc(X.tier)}</span><span class="tag t2">เลือก ${X.pick}% · แบน ${X.ban}% ในแข่งโปร</span></div></div></div>
+    ${tips}
+    ${plGroup('g3','★★★ ข่มชัด','ตั้งแต่ 3 แหล่งระบุตรงกัน',by(3))}
+    ${plGroup('g2','★★ ได้เปรียบ','2 แหล่งระบุตรงกัน',by(2))}
+    ${plGroup('g1','★ พอมีทาง','แหล่งเดียว ผลโปร หรือความเห็นวิเคราะห์ น่าเชื่อถือน้อย',by(1))}
+    ${plGroup('bad','เสียเปรียบ','ศัตรูตัวนี้ข่มฮีโร่เหล่านี้ ควรเลี่ยงถ้าเลือกได้',lose)}
+    ${good||lose.length?'':'<p class="note">ฮีโร่ถนัดของ '+esc(plCur.name||'ผู้เล่นคนนี้')+' ยังไม่มีข้อมูลคู่กับ '+esc(X.th)+' เลย ลองเพิ่มฮีโร่ถนัดอีกสองสามตัว</p>'}
+    ${none.length?`<details class="xtra"><summary>ยังไม่มีข้อมูลคู่นี้ ${none.length} ตัว</summary><div class="pl-nolist">${none.map(r=>`<button type="button" class="chip" data-h="${esc(H[r.hi].name)}"><img src="${H[r.hi].img}" alt="" width="22" height="22"> ${esc(H[r.hi].th)}${r.ev.dir===2?' (แหล่งขัดกัน)':''}</button>`).join('')}</div></details>`:''}`;
+}
+function plRenderPer(){
+  const box=$('plPer'); if(!box) return;
+  const per=plCur.ids.map(id=>{
     const hi=BYID.get(id), h=H[hi];
-    const L=plPairs(hi,'lose'), W=plPairs(hi,'win');
+    const L=(CBY.get(hi)||[]).filter(o=>adv(o.c,o.t).v>0), W=(CVS.get(hi)||[]).filter(o=>adv(o.c,o.t).v>0);
     return `<details class="plh"><summary><img src="${h.img}" alt=""><b>${esc(h.th)}</b><small>โดนข่ม ${L.length} · ข่ม ${W.length}</small></summary>
       <div class="sec"><h4>แพ้ทาง</h4>${ctrList(L,'c',h)}</div><div class="sec"><h4>ชนะทาง</h4>${ctrList(W,'t',h)}</div></details>`;
   }).join('');
-  box.innerHTML=`<div class="pl-wrap">
-    <label class="chk pl-multi" for="plMulti"><input type="checkbox" id="plMulti" ${plOpts.multi?'checked':''}>แสดงเฉพาะคู่ที่มีอย่างน้อย 2 แหล่งระบุตรงกัน <span class="note">(ปิดเพื่อดูคู่ที่มีแหล่งเดียวด้วย ความน่าเชื่อถือต่ำกว่า)</span></label>
-    <div class="pl-cols">
-      ${plColumn('ต้องระวัง','ฮีโร่ที่แก้ทางฮีโร่ของ '+nm+' เรียงตามจำนวนตัวที่ข่มได้',lose,'lose','ไม่พบคู่ที่ผ่านเกณฑ์ ลองปิดตัวกรองแหล่งข้อมูลด้านบน')}
-      ${plColumn('ได้เปรียบ','ฮีโร่ที่ '+nm+' แก้ทางได้ เรียงตามจำนวนตัวที่ข่มได้',win,'win','ไม่พบคู่ที่ผ่านเกณฑ์ ลองปิดตัวกรองแหล่งข้อมูลด้านบน')}
-    </div>
-    <section class="panel"><h3>ดูทีละตัว <small>ข้อมูลเดียวกับแท็บ แพ้/ชนะทาง ของแต่ละฮีโร่</small></h3>${per}</section>
-    <p class="note">ตัวเลขทางขวาคือจำนวนแหล่งที่ระบุคู่นั้นตรงกัน (จากไกด์ผู้เล่นและผลแข่งโปร ดูที่มาในแท็บ ที่มา) หากแหล่งอื่นบอกกลับกัน คู่นั้นจะไม่ขึ้นเมื่อสุทธิแล้วเสียเปรียบ นี่เป็นข้อมูลเชิงสถิติและความเห็นผู้เล่น ไม่ใช่ผลชี้ขาดของทุกเกม ฝีมือและทีมมีผลมากกว่า</p>
-  </div>`;
+  box.innerHTML=`<h3>ดูทีละตัว <small>ข้อมูลเดียวกับแท็บ แพ้/ชนะทาง ของแต่ละฮีโร่</small></h3>${per}`;
 }
 
 // ---------- อีเวนต์ ----------
@@ -615,23 +674,31 @@ $('viewPlayers').addEventListener('click',e=>{
     if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done,fb); else fb();
     return;}
   if(t.closest('#plTogglePick')){plOpts.picker=!plOpts.picker;plRenderPool();plRenderPick();return;}
+  const mrm=t.closest('[data-mrm]');
+  if(mrm){const id=+mrm.dataset.mrm;metaIds=metaList().filter(x=>x!==id);metaSave();if(plOpts.enemy===id)plOpts.enemy=null;plRenderMeta();plRenderEnemy();return;}
+  const ma=t.closest('[data-madd]');
+  if(ma){const id=+ma.dataset.madd;const cur=metaList();metaIds=cur.includes(id)?cur.filter(x=>x!==id):[...cur,id];metaSave();if(plOpts.enemy===id&&!metaIds.includes(id))plOpts.enemy=null;
+    const g=$('plMGrid'),sc=g?g.scrollTop:0;plRenderMeta();const g2=$('plMGrid');if(g2)g2.scrollTop=sc;plRenderEnemy();return;}
+  if(t.closest('#plMetaEdit')){plOpts.metaEdit=!plOpts.metaEdit;plRenderMeta();return;}
+  if(t.closest('#plMetaReset')){metaIds=null;metaSave();if(plOpts.enemy!=null&&!metaList().includes(plOpts.enemy))plOpts.enemy=null;plRenderMeta();plRenderEnemy();return;}
+  const en=t.closest('[data-enemy]');
+  if(en){plOpts.enemy=+en.dataset.enemy;document.querySelectorAll('#plMeta .hbtn[data-enemy]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.enemy===plOpts.enemy));plRenderEnemy();
+    if(innerWidth<900){const el=$('plEnemy');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}return;}
   const rm=t.closest('[data-rm]');
-  if(rm){const id=+rm.dataset.rm;plCur.ids=plCur.ids.filter(x=>x!==id);plRenderPool();plRenderGrid();plRenderRes();plSync();return;}
+  if(rm){const id=+rm.dataset.rm;plCur.ids=plCur.ids.filter(x=>x!==id);plRenderPool();plRenderGrid();plAfterPool();plSync();return;}
   const pk=t.closest('[data-pick]');
   if(pk){const id=+pk.dataset.pick;
     plCur.ids=plCur.ids.includes(id)?plCur.ids.filter(x=>x!==id):[...plCur.ids,id];
     pk.setAttribute('aria-pressed',plCur.ids.includes(id));
-    plRenderPool();plRenderRes();plSync();return;}
-  if(t.closest('#plAddFav')){plCur.ids=[...new Set([...plCur.ids,...[...favs].filter(i=>BYID.has(i))])];plRenderPool();plRenderGrid();plRenderRes();plSync();return;}
+    plRenderPool();plAfterPool();plSync();return;}
+  if(t.closest('#plAddFav')){plCur.ids=[...new Set([...plCur.ids,...[...favs].filter(i=>BYID.has(i))])];plRenderPool();plRenderGrid();plAfterPool();plSync();return;}
   const c=t.closest('.chip[data-h]');
   if(c){window.openHero(c.dataset.h);}
 });
 $('viewPlayers').addEventListener('input',e=>{
   if(e.target.id==='plName'){plCur.name=e.target.value.slice(0,40);plSync();}
   else if(e.target.id==='plQ'){plOpts.q=e.target.value;plRenderGrid();}
-});
-$('viewPlayers').addEventListener('change',e=>{
-  if(e.target.id==='plMulti'){plOpts.multi=e.target.checked;plRenderRes();}
+  else if(e.target.id==='plMQ'){plOpts.mq=e.target.value;plRenderMGrid();}
 });
 $('viewPlayers').addEventListener('submit',e=>{
   if(e.target.id!=='plNew') return;
